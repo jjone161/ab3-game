@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Franco Food Monster Game Stack'
+
+Parameters:
+  GitHubPersonalAccessToken:
+    Type: String
+    NoEcho: true
+    Description: GitHub Personal Access Token for repository access
+
+  GitHubRepositoryURL:
+    Type: String
+    Description: Your GitHub repository URL
+    Default: 'https://github.com/YOUR-USERNAME/franco-game'
+
+  CognitoUserPoolId:
+    Type: String
+    Description: Existing Cognito User Pool ID
+    Default: 'us-east-1_OjSZIiDXs'
+
+  CognitoAppClientId:
+    Type: String
+    Description: Existing Cognito App Client ID
+    Default: '7o0sso21vhh0nic2q85lfuajfq'
+
+  ApiGatewayId:
+    Type: String
+    Description: Existing API Gateway ID
+    Default: 'l0tebdk8th'
+
+  AuroraClusterArn:
+    Type: String
+    Description: Existing Aurora Cluster ARN
+    Default: 'arn:aws:rds:us-east-1:575108943146:cluster:food-monster-game'
+
+Resources:
+  AmplifyApp:
+    Type: AWS::Amplify::App
+    Properties:
+      Name: franco-food-monster
+      Repository: !Ref GitHubRepositoryURL
+      AccessToken: !Ref GitHubPersonalAccessToken
+      BuildSpec: |-
+        version: 1
+        frontend:
+          phases:
+            preBuild:
+              commands:
+                - npm ci
+            build:
+              commands:
+                - npm run build
+          artifacts:
+            baseDirectory: build
+            files:
+              - '**/*'
+          cache:
+            paths:
+              - node_modules/**/*
+      CustomRules:
+        - Source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf)$)([^.]+$)/'
+          Target: '/index.html'
+          Status: '200'
+      EnvironmentVariables:
+        - Name: REACT_APP_API_URL
+          Value: !Sub 'https://${ApiGatewayId}.execute-api.${AWS::Region}.amazonaws.com'
+        - Name: REACT_APP_USER_POOL_ID
+          Value: !Ref CognitoUserPoolId
+        - Name: REACT_APP_USER_POOL_WEB_CLIENT_ID
+          Value: !Ref CognitoAppClientId
+        - Name: REACT_APP_REGION
+          Value: !Ref AWS::Regiogion
+
+  AmplifyBranch:
+    Type: AWS::Amplify::Branch
+    Properties:
+      AppId: !Ref AmplifyApp
+      BranchName: main
+      EnableAutoBuild: true
+      EnvironmentVariables:
+        - Name: AMPLIFY_MONOREPO_APP_ROOT
+          Value: /
+        - Name: _BUILD_TIMEOUT
+          Value: '30'
+
+  AmplifyDomain:
+    Type: AWS::Amplify::Domain
+    Properties:
+      AppId: !Ref AmplifyApp
+      DomainName: !Sub '${AWS::StackName}.game'
+      SubDomainSettings:
+        - BranchName: main
+          Prefix: ''
+
+Outputs:
+  AmplifyAppId:
+    Description: Amplify App ID
+    Value: !Ref AmplifyApp
+
+  AmplifyDefaultDomain:
+    Description: Amplify App Default Domain
+    Value: !Sub https://main.${AmplifyApp.DefaultDomain}
+
+  AmplifyCustomDomain:
+    Description: Amplify App Custom Domain
+    Value: !Sub https://${AWS::StackName}.game
+
