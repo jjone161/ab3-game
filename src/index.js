@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { Amplify } from 'aws-amplify';
-import { amplifyConfig } from './config/amplify-config';
+import amplifyConfig from './config/amplify-config'; // Changed this line
 import '@aws-amplify/ui-react/styles.css';
 
 // Configure Amplify
