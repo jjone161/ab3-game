@@ -1,4 +1,6 @@
-const API_URL = 'https://l0tebdk8th.execute-api.us-east-1.amazonaws.com'; // e.g., https://xxx.execute-api.us-east-1.amazonaws.com
+import { config } from '../config/config';
+
+const API_URL = config.apiUrl;
 
 export const saveGameState = async (userId, gameData) => {
     try {
@@ -66,25 +68,6 @@ export const loadGameState = async (userId) => {
     }
 };
 
-// Helper function to handle API errors
-const handleApiError = (error) => {
-    if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        console.error('API Error Response:', error.response.data);
-        console.error('API Error Status:', error.response.status);
-        console.error('API Error Headers:', error.response.headers);
-    } else if (error.request) {
-        // The request was made but no response was received
-        console.error('No response received:', error.request);
-    } else {
-        // Something happened in setting up the request that triggered an Error
-        console.error('Error setting up request:', error.message);
-    }
-    throw error;
-};
-
-// Optional: Add a function to check if a save exists
 export const checkSaveExists = async (userId) => {
     try {
         const result = await loadGameState(userId);
@@ -95,7 +78,6 @@ export const checkSaveExists = async (userId) => {
     }
 };
 
-// Optional: Add a function to delete a save
 export const deleteSaveGame = async (userId) => {
     try {
         const response = await fetch(`${API_URL}/game`, {
@@ -119,4 +101,71 @@ export const deleteSaveGame = async (userId) => {
         console.error('Error deleting save game:', error);
         throw new Error('Failed to delete save game: ' + error.message);
     }
+};
+
+// Helper function for retrying failed requests
+const retryOperation = async (operation, maxRetries = 3, delay = 1000) => {
+    let lastError;
+    
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await operation();
+        } catch (error) {
+            lastError = error;
+            console.log(`Attempt ${i + 1} failed, retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2; // exponential backoff
+        }
+    }
+    
+    throw lastError;
+};
+
+// Helper function to validate API response
+const validateResponse = (data) => {
+    if (!data) {
+        throw new Error('Empty response received');
+    }
+    
+    if (data.error) {
+        throw new Error(data.error);
+    }
+    
+    return data;
+};
+
+// Helper function to handle offline state
+const isOnline = () => {
+    return navigator.onLine;
+};
+
+// Queue operations when offline
+const operationsQueue = [];
+
+window.addEventListener('online', async () => {
+    console.log('Back online, processing queued operations...');
+    while (operationsQueue.length > 0) {
+        const operation = operationsQueue.shift();
+        try {
+            await operation();
+        } catch (error) {
+            console.error('Failed to process queued operation:', error);
+        }
+    }
+});
+
+export const queueOperationIfOffline = (operation) => {
+    if (!isOnline()) {
+        operationsQueue.push(operation);
+        return true;
+    }
+    return false;
+};
+
+// Export utility functions
+export const utils = {
+    retryOperation,
+    validateResponse,
+    isOnline,
+    queueOperationIfOffline
 };
