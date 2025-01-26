@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Franco Food Monster Game Stack'
+Description: 'Franco Food Monster Game Stack with Existing Amplify App'
 
 Parameters:
   GitHubPersonalAccessToken:
@@ -10,7 +10,7 @@ Parameters:
   GitHubRepositoryURL:
     Type: String
     Description: Your GitHub repository URL
-    Default: 'https://github.com/jjone161/franco-game'
+    Default: 'https://github.com/jjone161/ab3-game'
 
   CognitoUserPoolId:
     Type: String
@@ -32,75 +32,109 @@ Parameters:
     Description: Existing Aurora Cluster ARN
     Default: 'arn:aws:rds:us-east-1:575108943146:cluster:food-monster-game'
 
+  ExistingAmplifyAppId:
+    Type: String
+    Description: Existing Amplify App ID
+    Default: 'd2dltd1m02972k'
+
 Resources:
-  AmplifyApp:
-    Type: AWS::Amplify::App
+  AmplifyEnvironmentVariables:
+    Type: Custom::AmplifyVariables
     Properties:
-      Name: franco-food-monster
-      Repository: !Ref GitHubRepositoryURL
-      AccessToken: !Ref GitHubPersonalAccessToken
-      BuildSpec: |-
-        version: 1
-        frontend:
-          phases:
-            preBuild:
-              commands:
-                - npm ci
-            build:
-              commands:
-                - npm run build
-          artifacts:
-            baseDirectory: build
-            files:
-              - '**/*'
-          cache:
-            paths:
-              - node_modules/**/*
-      CustomRules:
-        - Source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf)$)([^.]+$)/'
-          Target: '/index.html'
-          Status: '200'
+      ServiceToken: !GetAtt AmplifyVariablesFunction.Arn
+      AppId: !Ref ExistingAmplifyAppId
+      BranchName: 'main'
       EnvironmentVariables:
-        - Name: REACT_APP_API_URL
-          Value: !Sub 'https://${ApiGatewayId}.execute-api.${AWS::Region}.amazonaws.com'
-        - Name: REACT_APP_USER_POOL_ID
-          Value: !Ref CognitoUserPoolId
-        - Name: REACT_APP_USER_POOL_WEB_CLIENT_ID
-          Value: !Ref CognitoAppClientId
-        - Name: REACT_APP_REGION
-          Value: !Ref AWS::Region
+        REACT_APP_API_URL: !Sub 'https://${ApiGatewayId}.execute-api.${AWS::Region}.amazonaws.com'
+        REACT_APP_USER_POOL_ID: !Ref CognitoUserPoolId
+        REACT_APP_USER_POOL_WEB_CLIENT_ID: !Ref CognitoAppClientId
+        REACT_APP_REGION: !Ref 'AWS::Region'
 
-  AmplifyBranch:
-    Type: AWS::Amplify::Branch
+  AmplifyVariablesFunction:
+    Type: AWS::Lambda::Function
     Properties:
-      AppId: !Ref AmplifyApp
-      BranchName: main
-      EnableAutoBuild: true
-      EnvironmentVariables:
-        - Name: AMPLIFY_MONOREPO_APP_ROOT
-          Value: /
-        - Name: _BUILD_TIMEOUT
-          Value: '30'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt AmplifyVariablesRole.Arn
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const amplify = new AWS.Amplify();
+          
+          exports.handler = async (event, context) => {
+            try {
+              if (event.RequestType === 'Delete') {
+                return await sendResponse(event, context, 'SUCCESS', {});
+              }
+              
+              const { AppId, BranchName, EnvironmentVariables } = event.ResourceProperties;
+              
+              const params = {
+                appId: AppId,
+                branchName: BranchName,
+                environmentVariables: EnvironmentVariables
+              };
+              
+              await amplify.updateBranch(params).promise();
+              
+              return await sendResponse(event, context, 'SUCCESS', {
+                Message: 'Environment variables updated successfully'
+              });
+            } catch (error) {
+              console.error('Error:', error);
+              return await sendResponse(event, context, 'FAILED', {
+                Message: error.message
+              });
+ ;
+            }
+          };
+          
+          async function sendResponse(event, context, responseStatus, responseData) {
+            const responseBody = JSON.stringify({
+              Status: responseStatus,
+              Reason: responseData.Message || 'See the details in CloudWatch Log Stream: ' + context.logStreamName,
+              PhysicalResourceId: context.logStreamName,
+              StackId: event.StackId,
+              RequestId: event.RequestId,
+              LogicalResourceId: event.LogicalResourceId,
+              Data: responseData
+            });
+            
+            return {
+              Status: responseStatus,
+              Data: responseData
+            };
+          }
 
-  AmplifyDomain:
-    Type: AWS::Amplify::Domain
+  AmplifyVariablesRole:
+    Type: AWS::IAM::Role
     Properties:
-      AppId: !Ref AmplifyApp
-      DomainName: !Sub '${AWS::StackName}.game'
-      SubDomainSettings:
-        - BranchName: main
-          Prefix: ''
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AmplifyAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - amplify:UpdateBranch
+                  - amplify:GetBranch
+                Resource: !Sub 'arn:aws:amplify:${AWS::Region}:${AWS::AccountId}:apps/${ExistingAmplifyAppId}/*'
 
 Outputs:
+  AmplifyAppURL:
+    Description: Existing Amplify App URL
+    Value: 'https://main.d2dltd1m02972k.amplifyapp.com'
+
   AmplifyAppId:
-    Description: Amplify App ID
-    Value: !Ref AmplifyApp
-
-  AmplifyDefaultDomain:
-    Description: Amplify App Default Domain
-    Value: !Sub https://main.${AmplifyApp.DefaultDomain}
-
-  AmplifyCustomDomain:
-    Description: Amplify App Custom Domain
-    Value: !Sub https://${AWS::StackName}.game
+    Description: Existing Amplify App ID
+    Value: !Ref ExistingAmplifyAppId
 
