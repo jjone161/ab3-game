@@ -1,3 +1,3 @@
 export const config = {
-    apiUrl: 'YOUR_API_GATEWAY_URL'
+    apiUrl: 'https://l0tebdk8th.execute-api.us-east-1.amazonaws.com'
 };
