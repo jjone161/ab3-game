@@ -1,4 +1,4 @@
-const API_URL = 'https://l0tebdk8th.execute-api.us-east-1.amazonaws.com';
+const API_URL = 'https://97bx5zktrj.execute-api.us-east-1.amazonaws.com';
 
 export const testConnection = async () => {
     try {
