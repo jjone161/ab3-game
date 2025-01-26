@@ -10,7 +10,7 @@ Parameters:
   GitHubRepositoryURL:
     Type: String
     Description: Your GitHub repository URL
-    Default: 'https://github.com/YOUR-USERNAME/franco-game'
+    Default: 'https://github.com/jjone161/franco-game'
 
   CognitoUserPoolId:
     Type: String
@@ -68,7 +68,7 @@ Resources:
         - Name: REACT_APP_USER_POOL_WEB_CLIENT_ID
           Value: !Ref CognitoAppClientId
         - Name: REACT_APP_REGION
-          Value: !Ref AWS::Regiogion
+          Value: !Ref AWS::Region
 
   AmplifyBranch:
     Type: AWS::Amplify::Branch
