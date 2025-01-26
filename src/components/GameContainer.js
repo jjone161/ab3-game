@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight, FaHandRock } from 'react-icons/fa';
+import { FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight, FaHandRock, FaBug } from 'react-icons/fa';
 import Inventory from './Inventory';
-import { saveGameState, loadGameState } from '../services/gameService';
+import { saveGameState, loadGameState, testConnection } from '../services/gameService';
 import { Auth } from 'aws-amplify';
 
 const GameWrapper = styled(motion.div)`
@@ -48,7 +48,7 @@ const Button = styled(motion.button)`
   padding: 15px 25px;
   border: none;
   border-radius: 12px;
-  background: ${props => props.isCollect ? '#e74c3c' : '#3498db'};
+  background: ${props => props.isCollect ? '#e74c3c' : props.isTest ? '#9b59b6' : '#3498db'};
   color: white;
   cursor: pointer;
   display: flex;
@@ -99,7 +99,6 @@ const GameOverContent = styled(motion.div)`
     ? '0 0 30px rgba(46, 204, 113, 0.5)' 
     : '0 0 30px rgba(231, 76, 60, 0.5)'};
 `;
-
 const rooms = {
   'Lobby': {
     'East': 'Director office', 
@@ -164,7 +163,7 @@ function GameContainer({ playerName }) {
       try {
         const user = await Auth.currentAuthenticatedUser();
         const result = await loadGameState(user.username);
-        if (result.currentRoom && result.inventory) {
+        if (result && result.currentRoom && result.inventory) {
           setCurrentRoom(result.currentRoom);
           setInventory(result.inventory);
           setMessage({ text: 'Game loaded successfully', type: 'success' });
@@ -199,6 +198,23 @@ function GameContainer({ playerName }) {
     }
   }, [currentRoom, inventory, gameOver, isLoading]);
 
+  const handleTestConnection = async () => {
+    try {
+      const result = await testConnection();
+      setMessage({ 
+        text: 'API connection successful!', 
+        type: 'success' 
+      });
+      console.log('Connection test result:', result);
+    } catch (error) {
+      setMessage({ 
+        text: 'API connection failed', 
+        type: 'error' 
+      });
+      console.error('Connection test error:', error);
+    }
+  };
+
   const handleMove = (direction) => {
     if (gameOver) return;
     
@@ -231,7 +247,6 @@ function GameContainer({ playerName }) {
   if (isLoading) {
     return <Message type="info">Loading game...</Message>;
   }
-
   return (
     <>
       <GameWrapper
@@ -240,6 +255,16 @@ function GameContainer({ playerName }) {
         transition={{ duration: 0.5 }}
       >
         <MainArea>
+          <Button
+            isTest
+            onClick={handleTestConnection}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            style={{ marginBottom: '20px' }}
+          >
+            <FaBug /> Test API Connection
+          </Button>
+
           <RoomInfo
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
